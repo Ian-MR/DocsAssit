@@ -99,17 +99,17 @@ intfloat/multilingual-e5-small
 
 ```text
 DocsAssist/
-├── chunks/
 ├── docs/
+├── raws/
 ├── normalizeds/
+├── chunks/
 ├── estrutura.txt
-├── raws
 ├── README.md
 ├── requirements.txt
 └── src
+    ├── extractor.py
     ├── analyzer.py
     ├── chunker.py
-    ├── extractor.py
     └── main.py
 ```
 
