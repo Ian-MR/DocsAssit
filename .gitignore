@@ -1,0 +1,44 @@
+# Ambiente Virtual
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Variáveis/Segredos
+.env
+.env.*
+
+# IDE
+.vscode/
+.idea/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Documentos Entrada
+docs/*
+!docs/.gitkeep
+
+#Documentos Saida
+raws/*
+!raws/.gitkeep
+
+normalizeds/*
+!normalizeds/.gitkeep
+
+chunks/*
+!chunks/.gitkeep
+
+# Cache Modelos
+.cache/
+huggingface/
+models/
+
+# Logs
+*.log
+logs/
