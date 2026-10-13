@@ -1,0 +1,13 @@
+services:
+  docsassist:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    image: docsassist
+
+    volumes:
+      - ./docs:/app/docs
+      - ./raws:/app/raws
+      - ./normalizeds:/app/normalizeds
+      - ./chunks:/app/chunks
