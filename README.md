@@ -28,6 +28,56 @@ Projeto experimental de RAG local para processamento e recuperação de document
 
 O objetivo atual é construir a pipeline de preparação de documentos antes da etapa de busca semântica e recuperação.
 
+### Docker
+
+O projeto pode ser executado através do Docker para garantir um ambiente consistente entre diferentes sistemas operacionais e máquinas.
+
+A aplicação utiliza uma imagem Linux com Pyrhon e todas as dependências necessárias, evitando diferenças entre ambientes locais.
+
+### Estrutura utilizada
+
+```text
+DocsAssist/
+├── docs/
+├── raws/
+├── normalizeds/
+├── chunks/
+├── estrutura.txt
+├── README.md
+├── requirements.txt
+└── src
+    ├── extractor.py
+    ├── analyzer.py
+    ├── chunker.py
+    └── main.py
+```
+
+As pastas de dados são montadas como volumes no container:
+
+```text
+Host                    Container
+
+docs/         <------>  /app/docs
+raws/         <------>  /app/raws
+normalizeds/  <------>  /app/normalizeds
+chunks/       <------>  /app/chunks
+```
+
+Dessas forma, os arquivos gerados permanecem disponíveis na maquina mesmo após o container ser encerrado.
+
+
+### Requisitos
+
+É necessário possuir: 
+- Docker
+- Docker Compose v2
+
+Para verificar a instalação:
+```bash
+docker --version
+docker compose version
+```
+
 ### Pipeline atual
 
 O fluxo implementado até o momento é:
@@ -94,58 +144,78 @@ O tamanho dos chunks será controlado através da quantidade de tokens utilizand
 ```text
 intfloat/multilingual-e5-small
 ```
+### Construindo a imagem
 
-### Estrutura atual
+Na raiz do projeto:
+```bash
+docker compose build
+```
 
+A imagem contém:
+- Python
+- PyTorch CPU
+- Transformers
+- Sentence Transformers
+- PyMuPDF4LLM
+- demais dependências presentes em `requirements.txt`
+
+O PyTorch utilizado é a versão destinada à CPU, não sendo necessária uma GPU dedicada.
+
+### Verificando a aplicação
+
+Para visualizar os comandos disponíveis:
+```bash
+docker compose run --rm docsassist --help
+```
+
+Os comandos disponíveis atualmente são:
 ```text
-DocsAssist/
-├── docs/
-├── raws/
-├── normalizeds/
-├── chunks/
-├── estrutura.txt
-├── README.md
-├── requirements.txt
-└── src
-    ├── extractor.py
-    ├── analyzer.py
-    ├── chunker.py
-    └── main.py
+extract
+analyze
+chunk
+all
+```
+#### Extração
+
+Para processar apenas a extração de um documento:
+```bash
+docker compose rum --rm docsassist extract docs/arquivo.pdf
 ```
 
-### Ambiente
-
-Crie um ambiente virtual:
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
+O resultado será salvo em:
+```text
+raws/
 ```
 
-Instale as dependências:
+#### Normalização
+
+Para normalizar apenas um arquivo previamente extraido:
 ```bash
-python3 -m pip install -r requirements.txt
+docker compose rum --rm docsassist analyze raws/arquivo.json
 ```
 
-### Execução
-
-O `main.py` permite executar etapas específicas da pipeline.
-
-Extrair um documento:
-```bash
-python3 main.py extract docs/arquivo.pdf
+O resultado será salvo em:
+```text
+normalizeds/
 ```
 
-Normalizar um JSON já extraido:
+#### Geração de chunks
+
+Para gerar os chunks a partir de um documento normalizado:
 ```bash
-python3 main.py analyze raws/arquivo.json
+docker compose rum --rm docsassist chunk docs/arquivo.jsonl
 ```
-Executar o chunker sobre um arquivo normalizado:
-```bash
-python3 main.py chunk normalizeds/arquivo.jsonl
+
+O resultado será salvo em:
+```text
+chunks/
 ```
-Executar toda a pipeline:
+
+#### Pipeline completo
+
+Para executar todas as etapas em sequência:
 ```bash
-python3 main.py all docs/arquivo.pdf
+docker compose run --rm docsassist all docs/arquivo.pdf
 ```
 
 ### Próximas etapas
