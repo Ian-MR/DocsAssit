@@ -12,15 +12,15 @@ A proposta é usar uma LLM local, junto com a técnica de Retrieval-Augmented Ge
 Nessa estapa é necessário preparar um banco de dados, com os arquivos que vão ser usados como fonte. Os textos são extraidos, depois são reduzidos em chunks, e depois é feito o embedding, onde ira classificar esses chunk a partir de um vetor. Então essas informações
 serão armazenadas.
 
-### Analisador dos documentos
-
-### Requisitos
-
-#### Banco de dados
-
 ## 2ª Fase - Integrar com um modelo de LLM local
 
 Nessa etepa com os dados já preparados, então é inserido um modelo de LLM local, que a partir de uma pergunta o sitema retorna documentos relevantes, com esses documentos já podemos passar isso para uma I.A. generativa, que pode analisar e auxiliar e tirar dúvidas na criação de documentos e como proseguir.
+
+## SQLite
+
+O projeto utiliza o SQLite como banco de dados local para armazenamento futuro dos documentos, chunks e metadados de recuperação
+
+Nesta etapa, apenas o ambiente foi preparado. O banco de dados ainda não é criado automaticamente.
 
 ## Local RAG
 
@@ -42,6 +42,7 @@ DocsAssist/
 ├── raws/
 ├── normalizeds/
 ├── chunks/
+├── databases/
 ├── estrutura.txt
 ├── README.md
 ├── requirements.txt
@@ -55,12 +56,13 @@ DocsAssist/
 As pastas de dados são montadas como volumes no container:
 
 ```text
-Host                    Container
+Host                       Container
 
-docs/         <------>  /app/docs
-raws/         <------>  /app/raws
-normalizeds/  <------>  /app/normalizeds
-chunks/       <------>  /app/chunks
+docs/          <------>     /app/docs
+raws/          <------>     /app/raws
+normalizeds/   <------>     /app/normalizeds
+chunks/        <------>     /app/chunks
+databases/     <------>     /app/databases
 ```
 
 Dessas forma, os arquivos gerados permanecem disponíveis na maquina mesmo após o container ser encerrado.
@@ -76,6 +78,49 @@ Para verificar a instalação:
 ```bash
 docker --version
 docker compose version
+```
+
+### SQLite no container
+
+O python já possui suporte natico ao SQLite através do módulo:
+
+```python
+import sqlite3
+```
+
+Além disso, o cliente da linha de comando do SQLite é instaldo na imagem Docker para facilitar testes e inspeção do banco.
+
+Para verificar a versão disponível no container?
+
+```bash
+docker compose run --rm --entrypoint sqlite3 docsassist --version
+```
+
+Também é possível verificar o SQLite utilizado pelo Python:
+
+```bash
+docker compose run --rm --entrypoint python docsassist \
+  -c "import sqlite3; print(sqlite3.sqlite_version)"
+```
+
+### Persistência
+
+A pasta `databases/` é persistida através do `compose.yaml`.
+
+Os arquivos de banco não são versionados no Git. Apenas a estrutura da pasta é mantida através de `.gitkeep`.
+
+Exemplo:
+
+```text
+databases/
+└── .gitkeep
+```
+
+No `.gitignore`
+
+```gitignore
+databases/*
+!databases/.gitkeep
 ```
 
 ### Pipeline atual
