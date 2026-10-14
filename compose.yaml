@@ -11,3 +11,4 @@ services:
       - ./raws:/app/raws
       - ./normalizeds:/app/normalizeds
       - ./chunks:/app/chunks
+      - ./databases:/app/databases
