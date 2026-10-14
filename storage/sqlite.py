@@ -1,11 +1,3 @@
-"""
-Camada SQLite para um RAG: documentos + chunks.
-
-O id do chunk (chunks.id, INTEGER PRIMARY KEY) é o id usado no FAISS.
-Use faiss.IndexIDMap(...) e add_with_ids(vetores, ids) para que a busca
-devolva diretamente o chunks.id.
-"""
-
 import hashlib
 import json
 import os
@@ -14,12 +6,8 @@ import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 
-# No container: /app/databases/rag.db (volume ./databases), definido no compose
 DB_PATH = os.getenv("DB_PATH", "databases/rag.db")
 
-# --------------------------------------------------------------------------
-# DEFINIÇÃO
-# --------------------------------------------------------------------------
 SCHEMA = """
 PRAGMA foreign_keys = ON;
 
@@ -27,9 +15,9 @@ CREATE TABLE IF NOT EXISTS documents (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     file_name     TEXT    NOT NULL,
     file_path     TEXT    NOT NULL UNIQUE,
-    doc_type      TEXT    NOT NULL,                 -- pdf, docx, txt, md...
-    file_hash     TEXT    NOT NULL,                 -- sha256 do arquivo
-    last_modified REAL    NOT NULL,                 -- mtime (epoch)
+    doc_type      TEXT    NOT NULL,                 
+    file_hash     TEXT    NOT NULL,                 
+    last_modified REAL    NOT NULL,                 
     status        TEXT    NOT NULL DEFAULT 'pending'
                   CHECK (status IN ('pending', 'processing', 'indexed', 'error', 'outdated')),
     created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
@@ -37,15 +25,15 @@ CREATE TABLE IF NOT EXISTS documents (
 );
 
 CREATE TABLE IF NOT EXISTS chunks (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,  -- também é o id no FAISS
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
     document_id INTEGER NOT NULL
                 REFERENCES documents(id) ON DELETE CASCADE,
-    chunk_index INTEGER NOT NULL,                   -- ordem dentro do documento
+    chunk_index INTEGER NOT NULL,                  
     content     TEXT    NOT NULL,
     page_start  INTEGER,
     page_end    INTEGER,
     section     TEXT,
-    position    INTEGER,                            -- offset (caractere) no texto original
+    position    INTEGER,                            
     UNIQUE (document_id, chunk_index)
 );
 
@@ -81,7 +69,7 @@ END;
 def get_conn(db_path: str = DB_PATH):
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON;")  # precisa ser ativado a cada conexão
+    conn.execute("PRAGMA foreign_keys = ON;")
     try:
         yield conn
         conn.commit()
@@ -110,10 +98,6 @@ def compute_hash(file_path: str) -> str:
             h.update(block)
     return h.hexdigest()
 
-
-# --------------------------------------------------------------------------
-# INSERT
-# --------------------------------------------------------------------------
 def insert_document(file_path: str, doc_type: str | None = None,
                     status: str = "pending", db_path: str = DB_PATH) -> int:
     p = Path(file_path)
@@ -136,11 +120,6 @@ def insert_document(file_path: str, doc_type: str | None = None,
 
 
 def insert_chunks(document_id: int, chunks: list[dict], db_path: str = DB_PATH) -> list[int]:
-    """
-    chunks: [{"chunk_index": 0, "content": "...", "page_start": 1,
-              "page_end": 1, "section": "Intro", "position": 0}, ...]
-    Retorna os ids gerados (na mesma ordem) para usar no FAISS.
-    """
     ids = []
     with get_conn(db_path) as conn:
         for c in chunks:
@@ -167,7 +146,6 @@ def insert_chunks(document_id: int, chunks: list[dict], db_path: str = DB_PATH) 
 def save_document_with_chunks(
     file_path: str, chunks: list[dict], db_path: str = DB_PATH
 ) -> tuple[int, list[int]]:
-    """Insere ou atualiza um documento e substitui seus chunks em uma transação."""
     init_db(db_path)
     p = Path(file_path)
     resolved_path = str(p.resolve())
@@ -234,7 +212,6 @@ def save_document_with_chunks(
 def import_chunks_jsonl(
     jsonl_path: str, source_path: str, db_path: str = DB_PATH
 ) -> tuple[int, list[int]]:
-    """Importa chunks JSONL e vincula-os ao arquivo-fonte do documento."""
     chunks = []
     position = 0
     with open(jsonl_path, "r", encoding="utf-8") as f:
@@ -268,7 +245,6 @@ def import_chunks_jsonl(
 def search_chunks(
     query: str, limit: int = 5, db_path: str = DB_PATH
 ) -> list[dict]:
-    """Busca termos no FTS5 e retorna chunks ordenados por relevância BM25."""
     if limit < 1:
         raise ValueError("limit deve ser maior que zero")
     terms = re.findall(r"\w+", query, flags=re.UNICODE)
@@ -294,10 +270,6 @@ def search_chunks(
         ).fetchall()
     return [dict(row) for row in rows]
 
-
-# --------------------------------------------------------------------------
-# READ
-# --------------------------------------------------------------------------
 def get_document(document_id: int, db_path: str = DB_PATH) -> sqlite3.Row | None:
     with get_conn(db_path) as conn:
         return conn.execute("SELECT * FROM documents WHERE id = ?", (document_id,)).fetchone()
@@ -323,8 +295,6 @@ def get_chunk(chunk_id: int, db_path: str = DB_PATH) -> sqlite3.Row | None:
 
 
 def get_chunks_by_ids(chunk_ids: list[int], db_path: str = DB_PATH) -> list[sqlite3.Row]:
-    """Usado após a busca no FAISS: recebe os ids retornados e devolve os chunks
-    (com dados do documento), preservando a ordem de relevância."""
     if not chunk_ids:
         return []
     placeholders = ",".join("?" * len(chunk_ids))
@@ -350,21 +320,15 @@ def get_chunks_by_document(document_id: int, db_path: str = DB_PATH) -> list[sql
 
 
 def get_chunk_ids_by_document(document_id: int, db_path: str = DB_PATH) -> list[int]:
-    """Útil antes de deletar: remova esses ids do FAISS (remove_ids)."""
     with get_conn(db_path) as conn:
         rows = conn.execute("SELECT id FROM chunks WHERE document_id = ?", (document_id,)).fetchall()
     return [r["id"] for r in rows]
 
 
 def has_document_changed(file_path: str, db_path: str = DB_PATH) -> bool:
-    """True se o arquivo é novo ou o hash mudou."""
     doc = get_document_by_path(file_path, db_path)
     return doc is None or doc["file_hash"] != compute_hash(file_path)
 
-
-# --------------------------------------------------------------------------
-# UPDATE
-# --------------------------------------------------------------------------
 def update_document_status(document_id: int, status: str, db_path: str = DB_PATH) -> None:
     with get_conn(db_path) as conn:
         conn.execute(
@@ -374,7 +338,6 @@ def update_document_status(document_id: int, status: str, db_path: str = DB_PATH
 
 
 def update_document_file_info(document_id: int, db_path: str = DB_PATH) -> None:
-    """Recalcula hash e última modificação a partir do arquivo em disco."""
     doc = get_document(document_id, db_path)
     p = Path(doc["file_path"])
     with get_conn(db_path) as conn:
@@ -397,13 +360,7 @@ def update_chunk(chunk_id: int, db_path: str = DB_PATH, **fields) -> None:
     with get_conn(db_path) as conn:
         conn.execute(f"UPDATE chunks SET {set_clause} WHERE id = ?", (*fields.values(), chunk_id))
 
-
-# --------------------------------------------------------------------------
-# DELETE
-# --------------------------------------------------------------------------
 def delete_chunks_by_document(document_id: int, db_path: str = DB_PATH) -> list[int]:
-    """Remove os chunks de um documento (ex.: antes de reindexar).
-    Retorna os ids removidos para você apagar também do FAISS."""
     ids = get_chunk_ids_by_document(document_id, db_path)
     with get_conn(db_path) as conn:
         conn.execute("DELETE FROM chunks WHERE document_id = ?", (document_id,))
@@ -411,8 +368,6 @@ def delete_chunks_by_document(document_id: int, db_path: str = DB_PATH) -> list[
 
 
 def delete_document(document_id: int, db_path: str = DB_PATH) -> list[int]:
-    """Remove o documento; os chunks caem por ON DELETE CASCADE.
-    Retorna os ids dos chunks para remover do FAISS."""
     ids = get_chunk_ids_by_document(document_id, db_path)
     with get_conn(db_path) as conn:
         conn.execute("DELETE FROM documents WHERE id = ?", (document_id,))
