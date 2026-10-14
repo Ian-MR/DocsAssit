@@ -2,30 +2,30 @@ import json
 from pathlib import Path
 from transformers import AutoTokenizer
 
-tokenizer = AutoTokenizer.from_pretrained(
-    "intfloat/multilingual-e5-small"
-)
-
-MAX_SIZE = 400
-
-refs = {
-    'current_chunk': [],
-    'current_tokens': 0,
-    'chunks_counter':0,
-    'current_section': None,
-}
-
-chunk_model = {
-    'chunk_index': None,
-    'document_path': None,
-    'section': None,
-    'page_start': None,
-    'page_end': None,
-    'token_count': None,
-    'text': ""
-}
-
 def chunk(normalized_path):
+    tokenizer = AutoTokenizer.from_pretrained(
+        "intfloat/multilingual-e5-small"
+    )
+    
+    MAX_SIZE = 400
+    
+    refs = {
+        'current_chunk': [],
+        'current_tokens': 0,
+        'chunks_counter':0,
+        'current_section': None,
+    }
+    
+    chunk_model = {
+        'chunk_index': None,
+        'document_path': None,
+        'section': None,
+        'page_start': None,
+        'page_end': None,
+        'token_count': None,
+        'text': ""
+    }
+    
     with open(normalized_path, "r", encoding="utf-8") as f:
         with open(f"chunks/{normalized_path.stem}.jsonl", "w", encoding="utf-8") as c:
             for line in f:
