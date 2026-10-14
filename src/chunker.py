@@ -43,7 +43,7 @@ def chunk(normalized_path):
                 else:
                     chunk_register = chunk_model.copy()
                     chunk_register['chunk_index'] = refs['chunks_counter']
-                    chunk_register['document_path'] = str(normalized_path)
+                    chunk_register['document_path'] = refs['current_chunk'][0]["document_path"]
                     chunk_register['section'] = refs['current_section']
                     chunk_register['page_start'] = refs['current_chunk'][0]['page_number']
                     chunk_register['page_end'] = refs['current_chunk'][-1]['page_number']

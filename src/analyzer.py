@@ -35,7 +35,7 @@ def analyze(raw_path):
                         f.write(json.dumps(block_register, ensure_ascii=False) + "\n")
                     class_count[box['boxclass']] = class_count.get(box['boxclass'],0) + 1
                     block_register = json_model.copy()
-                    block_register['document_path'] = str(raw_path)
+                    block_register['document_path'] = data['filename']
                     block_register['page_number'] = page['page_number']
                     block_register['type'] = box['boxclass']
                     refs['last_type'] = box['boxclass']
