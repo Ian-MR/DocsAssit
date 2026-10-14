@@ -7,20 +7,19 @@ A proposta é usar uma LLM local, junto com a técnica de Retrieval-Augmented Ge
 
 --
 
-## 1ª Fase - Preparar o conjunto de dados internos
+## Etapa 1 - Preparar o conjunto de dados internos
 
 Nessa estapa é necessário preparar um banco de dados, com os arquivos que vão ser usados como fonte. Os textos são extraidos, depois são reduzidos em chunks, e depois é feito o embedding, onde ira classificar esses chunk a partir de um vetor. Então essas informações
 serão armazenadas.
 
-## 2ª Fase - Integrar com um modelo de LLM local
+## Etapa 2 - Integrar com um modelo de LLM local
 
 Nessa etepa com os dados já preparados, então é inserido um modelo de LLM local, que a partir de uma pergunta o sitema retorna documentos relevantes, com esses documentos já podemos passar isso para uma I.A. generativa, que pode analisar e auxiliar e tirar dúvidas na criação de documentos e como proseguir.
 
-## SQLite
+## Etapa 3 - SQLite e busca textual
 
-O projeto utiliza o SQLite como banco de dados local para armazenamento futuro dos documentos, chunks e metadados de recuperação
-
-Nesta etapa, apenas o ambiente foi preparado. O banco de dados ainda não é criado automaticamente.
+Documentos e chunks são armazenados em `databases/rag.db`. A busca textual usa
+FTS5/BM25 e retorna os trechos com sua fonte, página e seção.
 
 ## Local RAG
 
@@ -123,7 +122,7 @@ databases/*
 !databases/.gitkeep
 ```
 
-### Pipeline atual
+### Pipeline
 
 O fluxo implementado até o momento é:
 
@@ -134,8 +133,13 @@ flowchart TD
 	C --> D[Analyzer]
 	D --> E[JSONL normalizado]
 	E --> F[Chunker]
-	F --> G[Chunks]
+	F --> G[Chunks JSONL]
+	G --> H[(SQLite: documents + chunks + FTS5)]
 ```
+
+Os comandos `all`, `chunk` e `import-jsonl` registram o PDF e seus chunks em
+`databases/rag.db`. Ao reimportar o mesmo PDF, os chunks anteriores são
+substituídos e o índice FTS5 é atualizado.
 
 #### Extractor
 
@@ -182,19 +186,68 @@ Exemplo de estrutura:
 
 #### Chunker
 
-O `chunker.py` será responsável por agrupar os blocos normalizados em chunks adequados para recuperação semântica.
+O `chunker.py` agrupa os blocos normalizados em chunks para recuperação.
 
 O tamanho dos chunks será controlado através da quantidade de tokens utilizando o tokenizer do modelo:
 
 ```text
 intfloat/multilingual-e5-small
 ```
+
+#### Importar JSONL existente
+
+```bash
+docker compose run --rm docsassist import-jsonl chunks/arquivo.jsonl --source docs/arquivo.pdf
+```
+
+O JSONL pode usar `text` (gerado pelo chunker) ou `content`.
+Esse comando não precisa baixar o tokenizer.
+
+#### Busca textual e contrato para API
+
+```bash
+docker compose run --rm docsassist search "health insurance coverage" --limit 5
+```
+
+A busca retorna JSON neste formato:
+
+```json
+{
+  "query": "health insurance coverage",
+  "results": [{
+    "chunk_id": 12,
+    "document_id": 3,
+    "file_name": "arquivo.pdf",
+    "file_path": "/app/docs/arquivo.pdf",
+    "page_start": 1,
+    "page_end": 2,
+    "section": "Coverage",
+    "content": "Trecho relevante...",
+    "score": -0.75
+  }]
+}
+```
+
+O score BM25 mais baixo representa resultado mais relevante. Se nenhum termo
+corresponder, `results` será uma lista vazia. A função
+`storage.sqlite.search_chunks(query, limit)` pode ser chamada pela futura API.
 ### Construindo a imagem
 
 Na raiz do projeto:
 ```bash
 docker compose build
 ```
+
+Reconstrua a imagem depois de alterar o código Python. Sem isso,
+`docker compose run` pode executar uma versão antiga que não reconhece os
+comandos mais novos. Para reconstruir e executar em uma única etapa:
+
+```bash
+docker compose run --build --rm docsassist all docs/arquivo.pdf
+```
+
+Ao executar no Windows, use `/` nos caminhos passados para o container
+(por exemplo, `docs/arquivo.pdf`); eles são caminhos Linux dentro da imagem.
 
 A imagem contém:
 - Python
@@ -219,6 +272,8 @@ extract
 analyze
 chunk
 all
+import-jsonl
+search
 ```
 #### Extração
 
@@ -248,10 +303,17 @@ normalizeds/
 
 Para gerar os chunks a partir de um documento normalizado:
 ```bash
-docker compose rum --rm docsassist chunk docs/arquivo.jsonl
+docker compose run --rm docsassist chunk normalizeds/arquivo.jsonl
 ```
 
-O resultado será salvo em:
+Os chunks são salvos em `chunks/` e também em `databases/rag.db`. Por padrão,
+o comando associa `normalizeds/arquivo.jsonl` ao PDF `docs/arquivo.pdf`.
+Se o PDF estiver em outro local:
+```bash
+docker compose run --rm docsassist chunk normalizeds/arquivo.jsonl --source caminho/arquivo.pdf
+```
+
+O arquivo JSONL continuará disponível em:
 ```text
 chunks/
 ```
@@ -265,11 +327,9 @@ docker compose run --rm docsassist all docs/arquivo.pdf
 
 ### Próximas etapas
 
-As próximas etapas previstas são:
-* finalizar a geração de chunks;
+Próximas etapas previstas:
 * gerar embeddings com `sentece-transformers`;
 * utilizar `intfloat/multilingual-e5-small`;
 * indexar embeddings com FAISS;
-* implementar busca lexical com SQLite FTS5/BM25;
 * combinar busca lexical e semântica;
 * adicionar processos automáticos de novos documentos.

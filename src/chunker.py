@@ -1,19 +1,7 @@
 import json
 from pathlib import Path
-from transformers import AutoTokenizer
-
-tokenizer = AutoTokenizer.from_pretrained(
-    "intfloat/multilingual-e5-small"
-)
 
 MAX_SIZE = 400
-
-refs = {
-    'current_chunk': [],
-    'current_tokens': 0,
-    'chunks_counter':0,
-    'current_section': None,
-}
 
 chunk_model = {
     'chunk_index': None,
@@ -26,8 +14,21 @@ chunk_model = {
 }
 
 def chunk(normalized_path):
+    from transformers import AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(
+        "intfloat/multilingual-e5-small"
+    )
+    refs = {
+        'current_chunk': [],
+        'current_tokens': 0,
+        'chunks_counter': 0,
+        'current_section': None,
+    }
+    chunks_path = Path(f"chunks/{normalized_path.stem}.jsonl")
+
     with open(normalized_path, "r", encoding="utf-8") as f:
-        with open(f"chunks/{normalized_path.stem}.jsonl", "w", encoding="utf-8") as c:
+        with open(chunks_path, "w", encoding="utf-8") as c:
             for line in f:
                 block = json.loads(line)
                 text = block.get('text', "").strip()
@@ -37,7 +38,12 @@ def chunk(normalized_path):
                     text,
                     add_special_tokens=False
                 )
-                if (refs['current_section'] == None or block['section'] == refs['current_section']) and refs['current_tokens'] + len(tokens) <= MAX_SIZE:
+                same_section = (
+                    refs['current_section'] is None
+                    or block['section'] == refs['current_section']
+                )
+                fits = refs['current_tokens'] + len(tokens) <= MAX_SIZE
+                if not refs['current_chunk'] or (same_section and fits):
                     refs['current_chunk'].append(block)
                     refs['current_tokens'] += len(tokens)
                 else:
@@ -68,3 +74,4 @@ def chunk(normalized_path):
                 c.write(json.dumps(chunk_register, ensure_ascii=False) + "\n")
                 # print (block['paragraph_index'], block_size, block['type'])
                 # print(block['paragraph_index'], block['type'], block['text'][:80])
+    return chunks_path
