@@ -7,7 +7,7 @@ project_root = Path(__file__).resolve().parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from storage.sqlite import import_chunks_jsonl, search_chunks
+from storage.sqlite import import_chunks_jsonl, search_chunks, get_chunks_by_ids
 
 parser = argparse.ArgumentParser()
 
@@ -26,8 +26,13 @@ chunk_parser = subparsers.add_parser("chunk")
 chunk_parser.add_argument("arquivo")
 chunk_parser.add_argument("--source", type=Path)
 
+indexer_parser = subparsers.add_parser("index")
+
 all_parser = subparsers.add_parser("all")
 all_parser.add_argument("arquivo")
+
+embed_search = subparsers.add_parser("embed-search")
+embed_search.add_argument("query")
 
 import_parser = subparsers.add_parser(
     "import-jsonl", help="Importa chunks JSONL existentes para o SQLite"
@@ -41,6 +46,14 @@ search_parser.add_argument("--limit", type=int, default=5)
 
 args = parser.parse_args()
 
+def index_document(docs_path):
+    from embedder import embed, generate_query_embedding
+    from indexer import build_index
+    from embedder import embed, generate_query_embedding
+    from indexer import build_index
+
+    embeddings, chunk_ids = embed()
+    build_index(embeddings, chunk_ids)    
 
 def cli_path(value: str | Path) -> Path:
     return Path(str(value).replace("\\", "/"))
@@ -79,11 +92,13 @@ elif args.command == "analyze":
     analyze(cli_path(args.arquivo))
 elif args.command == "chunk":
     from chunker import chunk
-
+    
     normalized_path = cli_path(args.arquivo)
     chunks_path = chunk(normalized_path)
     source_path = cli_path(args.source) if args.source else find_source_pdf(normalized_path)
     save_chunks_to_database(source_path, chunks_path)
+elif args.command == "index":
+    index_document(args.arquivo)        
 elif args.command == "all":
     from analyzer import analyze
     from chunker import chunk
@@ -94,6 +109,12 @@ elif args.command == "all":
     normalized_path = analyze(raw_path)
     chunks_path = chunk(normalized_path)
     save_chunks_to_database(source_path, chunks_path)
+    index_document(args.arquivo)
+elif "embed-search":
+    from retriever import retrieve
+
+    results = retrieve(args.query,k=5)
+    print(results)
 elif args.command == "import-jsonl":
     jsonl_path = cli_path(args.arquivo)
     source_path = cli_path(args.source)
