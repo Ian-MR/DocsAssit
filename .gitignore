@@ -38,6 +38,10 @@ chunks/*
 databases/*
 !databases/.gitkeep
 
+# FAISS
+indexes/*
+!indexes/.gitkeep
+
 # Cache Modelos
 .cache/
 huggingface/
