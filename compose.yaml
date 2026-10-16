@@ -8,6 +8,8 @@ services:
 
     volumes:
       - ./src:/app/src
+      - ./storage:/app/storage
+      - ./indexes:/app/indexes
       - ./docs:/app/docs
       - ./raws:/app/raws
       - ./normalizeds:/app/normalizeds
