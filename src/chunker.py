@@ -1,8 +1,9 @@
 import json
 from manifest import load_manifest, update_stage
 from paths import normalized_path, chunk_path
+from progress import ProgressCallback, emit_progress
 
-def chunk(doc_path):
+def chunk(doc_path, progress: ProgressCallback | None = None):
     from transformers import AutoTokenizer
 
         
@@ -31,6 +32,14 @@ def chunk(doc_path):
         status = "processing",
         current = 0,
         total = total_blocks
+    )
+
+    emit_progress(
+        progress,
+        stage="chunking",
+        current=0,
+        total=total_blocks,
+        message="Iniciando chunking",
     )
     
     refs = {
@@ -66,7 +75,7 @@ def chunk(doc_path):
                 else:
                     chunk_register = chunk_model.copy()
                     chunk_register['chunk_index'] = refs['chunks_counter']
-                    chunk_register['document_path'] = str(normalized_path)
+                    chunk_register['document_path'] = str(doc_path)
                     chunk_register['section'] = refs['current_section']
                     chunk_register['page_start'] = refs['current_chunk'][0]['page_number']
                     chunk_register['page_end'] = refs['current_chunk'][-1]['page_number']
@@ -79,10 +88,16 @@ def chunk(doc_path):
                     refs['chunks_counter']+=1
                 refs['current_section'] = block['section']
                 refs['current_block']+=1
+                emit_progress(
+                    progress,
+                    stage="chunking",
+                    current = refs['current_block'],
+                    total = total_blocks,
+                )
             if refs['current_chunk']:
                 chunk_register = chunk_model.copy()
                 chunk_register['chunk_index'] = refs['chunks_counter']
-                chunk_register['document_path'] = str(normalized_path)
+                chunk_register['document_path'] = str(doc_path)
                 chunk_register['section'] = refs['current_section']
                 chunk_register['page_start'] = refs['current_chunk'][0]['page_number']
                 chunk_register['page_end'] = refs['current_chunk'][-1]['page_number']
@@ -97,6 +112,14 @@ def chunk(doc_path):
         current = refs['current_block']+1,
         total = total_blocks,
         chunks = refs['chunks_counter']+1 
+    )
+
+    emit_progress(
+        progress,
+        stage="chunking",
+        current = refs['current_block']+1,
+        total = total_blocks,
+        message = "Chunking concluído",
     )
     
     return True

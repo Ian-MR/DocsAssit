@@ -1,7 +1,9 @@
 import argparse
 import json
 from pathlib import Path
-from paths import chunk_path
+from manifest import ensure_manifest
+from paths import chunk_path, normalized_path
+from progress import TerminalProgress
 import sys
 
 project_root = Path(__file__).resolve().parent.parent
@@ -25,6 +27,7 @@ analyze_parser.add_argument("arquivo")
 
 chunk_parser = subparsers.add_parser("chunk")
 chunk_parser.add_argument("arquivo")
+chunk_parser.add_argument("--progress", action="store_true",help="Exibe o progresso da execução",)
 chunk_parser.add_argument("--source", type=Path)
 
 indexer_parser = subparsers.add_parser("index")
@@ -83,6 +86,7 @@ def find_source_pdf(normalized_path: Path) -> Path:
     return source_path
 
 doc_path = Path(args.arquivo)
+ensure_manifest(doc_path)
 
 if args.command == "extract":
     from extractor import extract
@@ -94,10 +98,11 @@ elif args.command == "analyze":
     analyze(doc_path)
 elif args.command == "chunk":
     from chunker import chunk
+
+    progress = TerminalProgress() if args.progress else None
     
-    normalized_path = cli_path(args.arquivo)
-    chunk(doc_path)
-    source_path = cli_path(args.source) if args.source else find_source_pdf(normalized_path)
+    chunk(doc_path, progress=progress)
+    source_path = cli_path(args.source) if args.source else find_source_pdf(normalized_path(doc_path))
     save_chunks_to_database(source_path, chunk_path(doc_path))
 elif args.command == "index":
     index_document(doc_path)        
