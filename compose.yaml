@@ -10,6 +10,7 @@ services:
       - ./src:/app/src
       - ./storage:/app/storage
       - ./indexes:/app/indexes
+      - ./manifests:/app/manifests
       - ./docs:/app/docs
       - ./raws:/app/raws
       - ./normalizeds:/app/normalizeds

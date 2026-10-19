@@ -8,3 +8,6 @@ def normalized_path(doc_path):
 
 def chunk_path(doc_path):
     return Path(f"chunks/{doc_path.stem}.jsonl")
+
+def manifest_path(doc_path):
+    return Path(f"manifests/{doc_path.stem}.json")

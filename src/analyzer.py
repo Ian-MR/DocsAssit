@@ -1,9 +1,22 @@
 import json
+from manifest import load_manifest, update_stage
 from paths import raw_path, normalized_path
-
 def analyze(doc_path):
     input_path = raw_path(doc_path)
     output_path = normalized_path(doc_path) 
+
+    # Atualizar manifesto
+    manifest = load_manifest(doc_path)
+    total_pages = manifest['stages']['extraction']['total']
+
+    update_stage(
+        doc_path,
+        stage = "normalization",
+        status = "processing",
+        current = 0,
+        total = total_pages
+    )
+
     with open(input_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
@@ -21,7 +34,9 @@ def analyze(doc_path):
     refs = {
         'paragraph_index_count': 0,
         'last_section': "",
-        'last_type': ""
+        'last_type': "",
+        'current_page': 0,
+        'total_blocks': 0,
     }
 
     block_register = None
@@ -32,6 +47,7 @@ def analyze(doc_path):
                 if not(refs['last_type'] == "list-item" and box['boxclass'] == "list-item"):
                     if block_register:
                         f.write(json.dumps(block_register, ensure_ascii=False) + "\n")
+                        refs['total_blocks']+=1
                     class_count[box['boxclass']] = class_count.get(box['boxclass'],0) + 1
                     block_register = json_model.copy()
                     block_register['document_path'] = data['filename']
@@ -45,6 +61,16 @@ def analyze(doc_path):
                         block_register['text'] += span['text']
                         refs['last_section'] = span['text'] if box['boxclass'] == "section-header" else refs['last_section']
                         block_register['section'] = refs['last_section']
-        f.write(json.dumps(block_register, ensure_ascii=False) + "\n")
-    # print(class_count)
+            refs['current_page']+=1
+        if block_register:
+            f.write(json.dumps(block_register, ensure_ascii=False) + "\n")
+            refs['total_blocks']+=1
+    update_stage(
+        doc_path,
+        stage = "normalization",
+        status = "done",
+        current = refs['current_page'],
+        total = total_pages,
+        blocks= refs["total_blocks"]
+    )
     return True

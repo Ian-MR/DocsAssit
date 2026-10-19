@@ -1,9 +1,11 @@
 import json
+from manifest import load_manifest, update_stage
 from paths import normalized_path, chunk_path
 
 def chunk(doc_path):
     from transformers import AutoTokenizer
 
+        
     MAX_SIZE = 400
 
     chunk_model = {
@@ -20,7 +22,19 @@ def chunk(doc_path):
         "intfloat/multilingual-e5-small"
     )
     
+    manifest = load_manifest(doc_path)
+    total_blocks = manifest['stages']['normalization']['blocks']
+
+    update_stage(
+        doc_path,
+        stage = "chunking",
+        status = "processing",
+        current = 0,
+        total = total_blocks
+    )
+    
     refs = {
+        'current_block': 0,
         'current_chunk': [],
         'current_tokens': 0,
         'chunks_counter': 0,
@@ -64,6 +78,7 @@ def chunk(doc_path):
                     refs['current_tokens'] = len(tokens)
                     refs['chunks_counter']+=1
                 refs['current_section'] = block['section']
+                refs['current_block']+=1
             if refs['current_chunk']:
                 chunk_register = chunk_model.copy()
                 chunk_register['chunk_index'] = refs['chunks_counter']
@@ -75,4 +90,13 @@ def chunk(doc_path):
                 for chunk_block in refs['current_chunk']:
                     chunk_register['text']+= chunk_block['text']
                 c.write(json.dumps(chunk_register, ensure_ascii=False) + "\n")
+    update_stage(
+        doc_path,
+        stage = "chunking",
+        status = "done",
+        current = refs['current_block']+1,
+        total = total_blocks,
+        chunks = refs['chunks_counter']+1 
+    )
+    
     return True
