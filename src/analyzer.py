@@ -1,11 +1,10 @@
 import json
-from pathlib import Path
+from paths import raw_path, normalized_path
 
-'''
-Recebe o path de um raw e retorna o path dele normalizado
-'''
-def analyze(raw_path):
-    with open(raw_path, "r", encoding="utf-8") as f:
+def analyze(doc_path):
+    input_path = raw_path(doc_path)
+    output_path = normalized_path(doc_path) 
+    with open(input_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
     json_model = {
@@ -27,7 +26,7 @@ def analyze(raw_path):
 
     block_register = None
 
-    with open(f"normalizeds/{raw_path.stem}.jsonl", "w", encoding="utf-8") as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         for page in data['pages']:
             for box in page["boxes"]:
                 if not(refs['last_type'] == "list-item" and box['boxclass'] == "list-item"):
@@ -47,5 +46,5 @@ def analyze(raw_path):
                         refs['last_section'] = span['text'] if box['boxclass'] == "section-header" else refs['last_section']
                         block_register['section'] = refs['last_section']
         f.write(json.dumps(block_register, ensure_ascii=False) + "\n")
-    print(class_count)
-    return Path(f"normalizeds/{raw_path.stem}.jsonl")
+    # print(class_count)
+    return True

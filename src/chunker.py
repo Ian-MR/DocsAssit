@@ -1,7 +1,7 @@
 import json
-from pathlib import Path
+from paths import normalized_path, chunk_path
 
-def chunk(normalized_path):
+def chunk(doc_path):
     from transformers import AutoTokenizer
 
     MAX_SIZE = 400
@@ -26,11 +26,12 @@ def chunk(normalized_path):
         'chunks_counter': 0,
         'current_section': None,
     }
-    
-    chunks_path = Path(f"chunks/{normalized_path.stem}.jsonl")
 
-    with open(normalized_path, "r", encoding="utf-8") as f:
-        with open(chunks_path, "w", encoding="utf-8") as c:
+    input_path = normalized_path(doc_path)    
+    output_path = chunk_path(doc_path)
+
+    with open(input_path, "r", encoding="utf-8") as f:
+        with open(output_path, "w", encoding="utf-8") as c:
             for line in f:
                 block = json.loads(line)
                 text = block.get('text', "").strip()
@@ -74,4 +75,4 @@ def chunk(normalized_path):
                 for chunk_block in refs['current_chunk']:
                     chunk_register['text']+= chunk_block['text']
                 c.write(json.dumps(chunk_register, ensure_ascii=False) + "\n")
-    return chunks_path
+    return True

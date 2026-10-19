@@ -5,13 +5,12 @@ import numpy as np
 from storage.sqlite import get_document_by_path, get_chunks_by_document
 
 EMBEDDER_URL = "http://embedder:8001/embed"
-DOCS_PATH = "docs/cdc_23530_DS1.pdf"
 
 
-def embed():
+def embed(doc_path):
     texts = []
     chunk_ids = []
-    doc = get_document_by_path(DOCS_PATH)
+    doc = get_document_by_path(str(doc_path))
     chunks = get_chunks_by_document(doc['id'])
     for chunk in chunks:
         chunk_ids.append(chunk['id'])
@@ -29,7 +28,10 @@ def embed():
         dtype=np.float32
     )
     
-    return embeddings, chunk_ids
+    return {
+        'embeddings':embeddings,
+        'chunk_ids':chunk_ids
+    }
 
 def generate_query_embedding(query):
     text = "query: " + query

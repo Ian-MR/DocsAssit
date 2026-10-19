@@ -1,6 +1,7 @@
 import argparse
 import json
 from pathlib import Path
+from paths import chunk_path
 import sys
 
 project_root = Path(__file__).resolve().parent.parent
@@ -28,6 +29,7 @@ chunk_parser.add_argument("--source", type=Path)
 
 indexer_parser = subparsers.add_parser("index")
 
+
 all_parser = subparsers.add_parser("all")
 all_parser.add_argument("arquivo")
 
@@ -46,15 +48,14 @@ search_parser.add_argument("--limit", type=int, default=5)
 
 args = parser.parse_args()
 
-def index_document(docs_path):
-    from embedder import embed, generate_query_embedding
-    from indexer import build_index
+def index_document(doc_path):
     from embedder import embed, generate_query_embedding
     from indexer import build_index
 
-    embeddings, chunk_ids = embed()
-    build_index(embeddings, chunk_ids)    
-
+    result = embed(doc_path)
+    build_index(result['embeddings'], result['chunk_ids'])
+    return True    
+    
 def cli_path(value: str | Path) -> Path:
     return Path(str(value).replace("\\", "/"))
 
@@ -81,35 +82,37 @@ def find_source_pdf(normalized_path: Path) -> Path:
         )
     return source_path
 
+doc_path = Path(args.arquivo)
 
 if args.command == "extract":
     from extractor import extract
 
-    extract(cli_path(args.arquivo))
+    extract(doc_path)
 elif args.command == "analyze":
     from analyzer import analyze
-
-    analyze(cli_path(args.arquivo))
+    
+    analyze(doc_path)
 elif args.command == "chunk":
     from chunker import chunk
     
     normalized_path = cli_path(args.arquivo)
-    chunks_path = chunk(normalized_path)
+    chunk(doc_path)
     source_path = cli_path(args.source) if args.source else find_source_pdf(normalized_path)
-    save_chunks_to_database(source_path, chunks_path)
+    save_chunks_to_database(source_path, chunk_path(doc_path))
 elif args.command == "index":
-    index_document(args.arquivo)        
+    index_document(doc_path)        
 elif args.command == "all":
     from analyzer import analyze
     from chunker import chunk
     from extractor import extract
 
     source_path = cli_path(args.arquivo)
-    raw_path = extract(source_path)
-    normalized_path = analyze(raw_path)
-    chunks_path = chunk(normalized_path)
-    save_chunks_to_database(source_path, chunks_path)
-    index_document(args.arquivo)
+
+    extract(doc_path)
+    analyze(doc_path)
+    chunk(doc_path)
+    save_chunks_to_database(source_path, chunk_path(doc_path))
+    index_document(doc_path)
 elif "embed-search":
     from retriever import retrieve
 
@@ -125,7 +128,7 @@ elif args.command == "import-jsonl":
 elif args.command == "search":
     results = search_chunks(args.query, args.limit)
     print(json.dumps(
-        {"query": args.query, "results": results},
+        {"query": args0.query, "results": results},
         ensure_ascii=False,
         indent=2,
     ))

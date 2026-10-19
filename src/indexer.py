@@ -18,3 +18,4 @@ def build_index(embeddings, chunk_ids):
         chunk_ids
     )
     save_index(index)
+    return True
