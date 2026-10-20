@@ -136,6 +136,7 @@ def chunk(doc_path, progress: ProgressCallback | None = None):
         current = refs['current_block']+1,
         total = total_blocks,
         message = "Chunking concluído",
+        done=True,
     )
     
     return True

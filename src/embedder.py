@@ -33,6 +33,14 @@ def embed(doc_path, progress: ProgressCallback | None = None):
         total = total_chunks
     )
 
+    emit_progress(
+        progress,
+        stage = "embedding",
+        current = 0,
+        total = total_chunks,
+        message = "Iniciando embeddings",
+    )
+
     all_embeddings = []
     all_chunks_ids = []
 
@@ -59,6 +67,13 @@ def embed(doc_path, progress: ProgressCallback | None = None):
 
         all_embeddings.extend(embeddings)
         all_chunks_ids.extend(chunk_ids)
+
+        emit_progress(
+            progress,
+            stage = "embedding",
+            current = len(all_chunks_ids),
+            total = total_chunks,
+        )
         
     update_stage(
         doc_path,
@@ -67,6 +82,15 @@ def embed(doc_path, progress: ProgressCallback | None = None):
         current = total_chunks,
         total = total_chunks,
         embeddings = len(all_embeddings)
+    )
+
+    emit_progress(
+        progress,
+        stage = "embedding",
+        current = total_chunks,
+        total = total_chunks,
+        message = "Embeddings concluídos",
+        done=True,
     )
     
     return {

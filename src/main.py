@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 from manifest import ensure_manifest
 from paths import chunk_path, normalized_path
-from progress import TerminalProgress
+from progress import TerminalProgress, ProgressCallback
 import sys
 
 project_root = Path(__file__).resolve().parent.parent
@@ -31,10 +31,13 @@ chunk_parser.add_argument("--progress", action="store_true",help="Exibe o progre
 chunk_parser.add_argument("--source", type=Path)
 
 indexer_parser = subparsers.add_parser("index")
+indexer_parser.add_argument("arquivo")
+indexer_parser.add_argument("--progress", action="store_true",help="Exibe o progresso da execução",)
 
 
 all_parser = subparsers.add_parser("all")
 all_parser.add_argument("arquivo")
+all_parser.add_argument("--progress", action="store_true",help="Exibe o progresso da execução",)
 
 embed_search = subparsers.add_parser("embed-search")
 embed_search.add_argument("query")
@@ -51,12 +54,12 @@ search_parser.add_argument("--limit", type=int, default=5)
 
 args = parser.parse_args()
 
-def index_document(doc_path):
+def index_document(doc_path, progress: ProgressCallback | None = None):
     from embedder import embed, generate_query_embedding
     from indexer import build_index
 
-    result = embed(doc_path)
-    build_index(result['embeddings'], result['chunk_ids'])
+    result = embed(doc_path, progress=progress)
+    build_index(result['embeddings'], result['chunk_ids'], doc_path=doc_path, progress=progress)
     return True    
     
 def cli_path(value: str | Path) -> Path:
@@ -87,6 +90,7 @@ def find_source_pdf(normalized_path: Path) -> Path:
 
 doc_path = Path(args.arquivo)
 ensure_manifest(doc_path)
+progress = TerminalProgress() if args.progress else None
 
 if args.command == "extract":
     from extractor import extract
@@ -99,13 +103,12 @@ elif args.command == "analyze":
 elif args.command == "chunk":
     from chunker import chunk
 
-    progress = TerminalProgress() if args.progress else None
     
     chunk(doc_path, progress=progress)
     source_path = cli_path(args.source) if args.source else find_source_pdf(normalized_path(doc_path))
     save_chunks_to_database(source_path, chunk_path(doc_path))
 elif args.command == "index":
-    index_document(doc_path)        
+    index_document(doc_path, progress=progress)        
 elif args.command == "all":
     from analyzer import analyze
     from chunker import chunk
@@ -115,9 +118,9 @@ elif args.command == "all":
 
     extract(doc_path)
     analyze(doc_path)
-    chunk(doc_path)
+    chunk(doc_path, progress=progress)
     save_chunks_to_database(source_path, chunk_path(doc_path))
-    index_document(doc_path)
+    index_document(doc_path, progress=progress)
 elif "embed-search":
     from retriever import retrieve
 

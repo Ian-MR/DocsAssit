@@ -8,6 +8,7 @@ class ProgressEvent:
     current: int
     total: int
     message: str | None = None
+    done: bool = False
 
 ProgressCallback = Callable[[ProgressEvent], None]
 
@@ -17,6 +18,7 @@ def emit_progress(
     current: int,
     total: int,
     message: str | None = None,
+    done: bool = False,
 ):
 
     if progress is None:
@@ -28,6 +30,7 @@ def emit_progress(
             current=current,
             total=total,
             message=message,
+            done=done,
         )
     )
 
@@ -46,6 +49,6 @@ class TerminalProgress:
 
         if delta>0:
             self.bar.update(delta)
-        if event.message and "concluído" in event.message.lower():
+        if event.done:
             self.bar.close()
             self.bar = None
