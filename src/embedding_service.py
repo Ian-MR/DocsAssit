@@ -4,9 +4,10 @@ from sentence_transformers import SentenceTransformer
 
 app = FastAPI()
 
-model = SentenceTransformer(
-    "intfloat/multilingual-e5-small"
-)
+print("Carregando Modelo E5...", flush=True)
+model = SentenceTransformer("intfloat/multilingual-e5-small")
+tokenizer = model.tokenizer
+print("Modelo E5 caregado.", flush=True)
 
 class EmbeddingRequest(BaseModel):
     texts: list[str]
@@ -18,6 +19,13 @@ def embed(request: EmbeddingRequest):
         normalize_embeddings=True
     )
 
-    return {
-        "embeddings": embeddings.tolist()
-    }
+    return { "embeddings": embeddings.tolist() }
+
+@app.post("/token-count")
+def token_count(request: EmbeddingRequest):
+    counts = [
+        len(tokenizer.encode(text))
+        for text in request.texts
+    ]
+
+    return { "token_counts": counts }

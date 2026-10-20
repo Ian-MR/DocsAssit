@@ -6,6 +6,15 @@ from storage.sqlite import get_document_by_path, get_chunks_by_document
 
 EMBEDDER_URL = "http://embedder:8001/embed"
 
+def count_tokens(texts: list[str]) -> list[str]:
+    response = requests.post(
+        "http://embedder:8001/token-count",
+        json={'texts': texts },
+    )
+
+    response.raise_for_status()
+
+    return response.json()['token_counts']
 
 def embed(doc_path):
     texts = []
