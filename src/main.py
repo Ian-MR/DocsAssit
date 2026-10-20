@@ -21,9 +21,11 @@ subparsers = parser.add_subparsers(
 
 extract_parser = subparsers.add_parser("extract")
 extract_parser.add_argument("arquivo")
+extract_parser.add_argument("--progress", action="store_true",help="Exibe o progresso da execução",)
 
 analyze_parser = subparsers.add_parser("analyze")
 analyze_parser.add_argument("arquivo")
+analyze_parser.add_argument("--progress", action="store_true",help="Exibe o progresso da execução",)
 
 chunk_parser = subparsers.add_parser("chunk")
 chunk_parser.add_argument("arquivo")
@@ -95,11 +97,11 @@ progress = TerminalProgress() if args.progress else None
 if args.command == "extract":
     from extractor import extract
 
-    extract(doc_path)
+    extract(doc_path, progress=progress)
 elif args.command == "analyze":
     from analyzer import analyze
     
-    analyze(doc_path)
+    analyze(doc_path, progress=progress)
 elif args.command == "chunk":
     from chunker import chunk
 
@@ -116,8 +118,8 @@ elif args.command == "all":
 
     source_path = cli_path(args.arquivo)
 
-    extract(doc_path)
-    analyze(doc_path)
+    extract(doc_path, progress=progress)
+    analyze(doc_path, progress=progress)
     chunk(doc_path, progress=progress)
     save_chunks_to_database(source_path, chunk_path(doc_path))
     index_document(doc_path, progress=progress)

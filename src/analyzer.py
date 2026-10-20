@@ -1,7 +1,9 @@
 import json
 from manifest import load_manifest, update_stage
 from paths import raw_path, normalized_path
-def analyze(doc_path):
+from progress import ProgressCallback, emit_progress
+
+def analyze(doc_path, progress: ProgressCallback | None = None,):
     input_path = raw_path(doc_path)
     output_path = normalized_path(doc_path) 
 
@@ -15,6 +17,14 @@ def analyze(doc_path):
         status = "processing",
         current = 0,
         total = total_pages
+    )
+
+    emit_progress(
+        progress,
+        stage = "normalization",
+        current = 0,
+        total = total_pages,
+        message = "Iniciando normalização",
     )
 
     with open(input_path, "r", encoding="utf-8") as f:
@@ -65,12 +75,30 @@ def analyze(doc_path):
         if block_register:
             f.write(json.dumps(block_register, ensure_ascii=False) + "\n")
             refs['total_blocks']+=1
+
+            emit_progress(
+                progress,
+                stage = "normalization",
+                current = refs['current_page'],
+                total = total_pages,
+            )
+            
     update_stage(
         doc_path,
         stage = "normalization",
         status = "done",
         current = refs['current_page'],
         total = total_pages,
-        blocks= refs["total_blocks"]
+        blocks= refs['total_blocks']
     )
+    
+    emit_progress(
+        progress,
+        stage = "normalization",
+        current = refs['current_page'],
+        total = total_pages,
+        message = "Normalização concluída",
+        done = True,
+    )
+    
     return True
