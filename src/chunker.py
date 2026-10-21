@@ -76,6 +76,13 @@ def chunk(doc_path, progress: ProgressCallback | None = None):
                 for block in batch:
                     text = block.get('text', "").strip()
                     if not text:
+                        refs['current_block']+=1
+                        emit_progress(
+                            progress,
+                            stage = "chunking",
+                            current = refs['current_block'],
+                            total = total_blocks,
+                        )
                         continue
 
                     tokens = next(token_counts)
@@ -110,30 +117,31 @@ def chunk(doc_path, progress: ProgressCallback | None = None):
                         current = refs['current_block'],
                         total = total_blocks,
                     )
-                if refs['current_chunk']:
-                    chunk_register = chunk_model.copy()
-                    chunk_register['chunk_index'] = refs['chunks_counter']
-                    chunk_register['document_path'] = str(doc_path)
-                    chunk_register['section'] = refs['current_section']
-                    chunk_register['page_start'] = refs['current_chunk'][0]['page_number']
-                    chunk_register['page_end'] = refs['current_chunk'][-1]['page_number']
-                    chunk_register['token_count'] = refs['current_tokens']
-                    for chunk_block in refs['current_chunk']:
-                        chunk_register['text']+= chunk_block['text']
-                    c.write(json.dumps(chunk_register, ensure_ascii=False) + "\n")
+            if refs['current_chunk']:
+                chunk_register = chunk_model.copy()
+                chunk_register['chunk_index'] = refs['chunks_counter']
+                chunk_register['document_path'] = str(doc_path)
+                chunk_register['section'] = refs['current_section']
+                chunk_register['page_start'] = refs['current_chunk'][0]['page_number']
+                chunk_register['page_end'] = refs['current_chunk'][-1]['page_number']
+                chunk_register['token_count'] = refs['current_tokens']
+                for chunk_block in refs['current_chunk']:
+                    chunk_register['text']+= chunk_block['text']
+                c.write(json.dumps(chunk_register, ensure_ascii=False) + "\n")
+                refs['chunks_counter']+=1
     update_stage(
         doc_path,
         stage = "chunking",
         status = "done",
-        current = refs['current_block']+1,
+        current = refs['current_block'],
         total = total_blocks,
-        chunks = refs['chunks_counter']+1 
+        chunks = refs['chunks_counter'], 
     )
 
     emit_progress(
         progress,
         stage="chunking",
-        current = refs['current_block']+1,
+        current = refs['current_block'],
         total = total_blocks,
         message = "Chunking concluído",
         done=True,
