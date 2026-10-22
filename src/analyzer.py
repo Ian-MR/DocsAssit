@@ -66,8 +66,8 @@ def analyze(doc_path, progress: ProgressCallback | None = None,):
                     refs['last_type'] = box['boxclass']
                     block_register['paragraph_index'] = refs['paragraph_index_count']
                     refs['paragraph_index_count']+=1
-                for textline in box['textlines']:
-                    for span in textline['spans']:
+                for textline in box['textlines'] or []:
+                    for span in textline['spans'] or []:
                         block_register['text'] += span['text']
                         refs['last_section'] = span['text'] if box['boxclass'] == "section-header" else refs['last_section']
                         block_register['section'] = refs['last_section']
