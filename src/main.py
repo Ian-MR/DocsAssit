@@ -49,14 +49,6 @@ search_parser.add_argument("query")
 search_parser.add_argument("--limit", type=int, default=5)
 
 args = parser.parse_args()
-
-def index_document(doc_path, progress: ProgressCallback | None = None):
-    from embedder import embed, generate_query_embedding
-    from indexer import build_index
-
-    result = embed(doc_path, progress=progress)
-    build_index(result['embeddings'], result['chunk_ids'], doc_path=doc_path, progress=progress)
-    return True    
     
 def cli_path(value: str | Path) -> Path:
     return Path(str(value).replace("\\", "/"))
@@ -91,13 +83,14 @@ elif args.command == "chunk":
     chunk(doc_path, progress=progress)
     save_chunks_to_database(doc_path)
 elif args.command == "index":
+    from indexing_service import index_document
+    
     index_document(doc_path, progress=progress)        
 elif args.command == "all":
     from analyzer import analyze
     from chunker import chunk
     from extractor import extract
-
-    # source_path = cli_path(args.arquivo)
+    from indexing_service import index_document
 
     extract(doc_path, progress=progress)
     analyze(doc_path, progress=progress)

@@ -1,8 +1,8 @@
 import faiss
 from progress import emit_progress, ProgressCallback
-from manifest import update_stage
+from manifest import update_stage, load_manifest
 import numpy as np
-
+from pathlib import Path
 
 def save_index(index, path="indexes/docsassist.faiss"):
     faiss.write_index(index, path)
@@ -10,10 +10,17 @@ def save_index(index, path="indexes/docsassist.faiss"):
 def load_index(path="indexes/docsassist.faiss"):
     return faiss.read_index(path)
 
-def build_index(embeddings, chunk_ids, doc_path, progress: ProgressCallback | None = None):
+def load_or_create_index(dimension, index_path="indexes/docsassist.faiss"):
+    if Path(index_path).exists():
+       return load_index(index_path)
+
+    base_index = faiss.IndexFlatIP(dimension)
+    return faiss.IndexIDMap2(base_index)
+
+def update_index(embeddings, chunk_ids, old_chunk_ids, doc_path, progress: ProgressCallback | None = None):
     embeddings = np.asarray(embeddings, dtype=np.float32)
     chunk_ids = np.asarray(chunk_ids, dtype=np.int64)
-    dimesion = embeddings.shape[1]
+    dimension = embeddings.shape[1]
 
     update_stage(
         doc_path,
@@ -31,8 +38,12 @@ def build_index(embeddings, chunk_ids, doc_path, progress: ProgressCallback | No
         message = "Iniciando indexação"
     )
     
-    base_index = faiss.IndexFlatIP(dimesion)
-    index = faiss.IndexIDMap2(base_index)
+    index = load_or_create_index(dimension)
+
+    if old_chunk_ids:
+        old_ids = np.asarray(old_chunk_ids, dtype=np.int64)
+        index.remove_ids(old_ids)
+
     index.add_with_ids(
         embeddings,
         chunk_ids
@@ -46,7 +57,8 @@ def build_index(embeddings, chunk_ids, doc_path, progress: ProgressCallback | No
         status = "done",
         current=len(chunk_ids),
         total = len(chunk_ids),
-        vectors = len(chunk_ids)
+        vectors = len(chunk_ids),
+        chunk_ids = chunk_ids.tolist(),
     )
 
     emit_progress(

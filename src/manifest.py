@@ -11,7 +11,7 @@ def create_manifest(doc_path):
             'normalization': {'status': "pending"},
             'chunking': {'status': "pending"},
             'embedding': {'status': "pending"},
-            'indexing': {'status': "pending"},
+            'indexing': {'status': "pending", 'chunks_ids': []},
         },
     }
 
