@@ -5,12 +5,17 @@ from src.embedder import generate_query_embedding
 from src.indexer import load_index
 
 def retrieve(query, index_path="indexes/docsassist.faiss", k=3):
-    index = load_index()
+    index = load_index(index_path)
 
+    if index.ntotal == 0:
+        return []
+    
+    effective_k = min(k, index.ntotal)
+    
     query_embedding = generate_query_embedding(query)
     query_embedding = np.asarray(query_embedding, dtype=np.float32).reshape(1, -1)
 
-    scores, ids = index.search(query_embedding, k)    
+    scores, ids = index.search(query_embedding, effective_k)    
 
     results = []
 

@@ -72,6 +72,12 @@ def analyze(doc_path, progress: ProgressCallback | None = None,):
                         refs['last_section'] = span['text'] if box['boxclass'] == "section-header" else refs['last_section']
                         block_register['section'] = refs['last_section']
             refs['current_page']+=1
+            emit_progress(
+                progress,
+                stage = "normalization",
+                current = refs['current_page'],
+                total = total_pages
+            )
         if block_register:
             f.write(json.dumps(block_register, ensure_ascii=False) + "\n")
             refs['total_blocks']+=1

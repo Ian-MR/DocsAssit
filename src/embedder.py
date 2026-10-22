@@ -9,7 +9,7 @@ from progress import ProgressCallback, emit_progress
 EMBEDDER_URL = "http://embedder:8001/embed"
 EMBED_BATCH_SIZE = 64
 
-def count_tokens(texts: list[str]) -> list[str]:
+def count_tokens(texts: list[str]) -> list[int]:
     response = requests.post(
         "http://embedder:8001/token-count",
         json={'texts': texts },
