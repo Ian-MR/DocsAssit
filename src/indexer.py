@@ -14,13 +14,16 @@ def load_or_create_index(dimension, index_path="indexes/docsassist.faiss"):
     if Path(index_path).exists():
        return load_index(index_path)
 
+    if dimension is None:
+        return None
+
     base_index = faiss.IndexFlatIP(dimension)
     return faiss.IndexIDMap2(base_index)
 
 def update_index(embeddings, chunk_ids, old_chunk_ids, doc_path, progress: ProgressCallback | None = None):
     embeddings = np.asarray(embeddings, dtype=np.float32)
     chunk_ids = np.asarray(chunk_ids, dtype=np.int64)
-    dimension = embeddings.shape[1]
+    dimension = embeddings.shape[1] if embeddings.size > 0 else None
 
     update_stage(
         doc_path,
@@ -40,16 +43,18 @@ def update_index(embeddings, chunk_ids, old_chunk_ids, doc_path, progress: Progr
     
     index = load_or_create_index(dimension)
 
-    if old_chunk_ids:
-        old_ids = np.asarray(old_chunk_ids, dtype=np.int64)
-        index.remove_ids(old_ids)
+    if index is not None:
 
-    index.add_with_ids(
-        embeddings,
-        chunk_ids
-    )
+        if old_chunk_ids:
+            old_ids = np.asarray(old_chunk_ids, dtype=np.int64)
+            index.remove_ids(old_ids)
+        if len(chunk_ids) > 0:
+            index.add_with_ids(
+                embeddings,
+                chunk_ids
+            )
 
-    save_index(index)
+        save_index(index)
 
     update_stage(
         doc_path,

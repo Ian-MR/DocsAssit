@@ -70,7 +70,7 @@ def chunk(doc_path, progress: ProgressCallback | None = None):
                 if not batch:
                     break
 
-                texts = [block['text'] for block in batch if block.get('text')]
+                texts = [block['text'].strip() for block in batch if (block.get('text') or "").strip()]
                 token_counts = iter(count_tokens(texts)) if texts else iter([])
                     
                 for block in batch:

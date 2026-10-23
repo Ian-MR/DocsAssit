@@ -26,6 +26,9 @@ def retrieve(query, index_path="indexes/docsassist.faiss", k=3):
         chunk = get_chunks_by_ids([chunk_id])[0]
 
         results.append({
+            'document_id': chunk['document_id'],
+            'file_name': chunk['file_name'],
+            'file_path': chunk['file_path'],
             'chunk_id': chunk['id'],
             'score': score,
             'text': chunk['content'],
