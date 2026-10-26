@@ -144,8 +144,14 @@ def insert_chunks(document_id: int, chunks: list[dict], db_path: str = DB_PATH) 
 
 
 def save_document_with_chunks(
-    file_path: str, chunks: list[dict], db_path: str = DB_PATH
+    file_path: str,
+    chunks: list[dict],
+    db_path: str = DB_PATH,
+    status: str = "indexed",
 ) -> tuple[int, list[int]]:
+    if status not in {"pending", "processing", "indexed", "error", "outdated"}:
+        raise ValueError(f"Status de documento inválido: {status}")
+
     init_db(db_path)
     p = Path(file_path)
     resolved_path = str(p.resolve())
@@ -161,23 +167,34 @@ def save_document_with_chunks(
         if row:
             document_id = row["id"]
             conn.execute("DELETE FROM chunks WHERE document_id = ?", (document_id,))
-            conn.execute(
-                """
-                UPDATE documents
-                SET file_name = ?, doc_type = ?, file_hash = ?, last_modified = ?,
-                    status = 'processing', updated_at = datetime('now')
-                WHERE id = ?
-                """,
-                (p.name, doc_type, file_hash, last_modified, document_id),
-            )
+            if status == "processing":
+                conn.execute(
+                    """
+                    UPDATE documents
+                    SET file_name = ?, doc_type = ?, status = ?,
+                        updated_at = datetime('now')
+                    WHERE id = ?
+                    """,
+                    (p.name, doc_type, status, document_id),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE documents
+                    SET file_name = ?, doc_type = ?, file_hash = ?, last_modified = ?,
+                        status = ?, updated_at = datetime('now')
+                    WHERE id = ?
+                    """,
+                    (p.name, doc_type, file_hash, last_modified, status, document_id),
+                )
         else:
             cur = conn.execute(
                 """
                 INSERT INTO documents
                     (file_name, file_path, doc_type, file_hash, last_modified, status)
-                VALUES (?, ?, ?, ?, ?, 'processing')
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (p.name, resolved_path, doc_type, file_hash, last_modified),
+                (p.name, resolved_path, doc_type, file_hash, last_modified, status),
             )
             document_id = cur.lastrowid
 
@@ -201,16 +218,14 @@ def save_document_with_chunks(
             )
             chunk_ids.append(cur.lastrowid)
 
-        conn.execute(
-            "UPDATE documents SET status = 'indexed', updated_at = datetime('now') WHERE id = ?",
-            (document_id,),
-        )
-
     return document_id, chunk_ids
 
 
 def import_chunks_jsonl(
-    jsonl_path: str, source_path: str, db_path: str = DB_PATH
+    jsonl_path: str,
+    source_path: str,
+    db_path: str = DB_PATH,
+    status: str = "indexed",
 ) -> tuple[int, list[int]]:
     chunks = []
     position = 0
@@ -239,7 +254,7 @@ def import_chunks_jsonl(
             })
             position += len(content)
 
-    return save_document_with_chunks(source_path, chunks, db_path)
+    return save_document_with_chunks(source_path, chunks, db_path, status)
 
 
 def search_chunks(
@@ -328,6 +343,75 @@ def get_chunk_ids_by_document(document_id: int, db_path: str = DB_PATH) -> list[
 def has_document_changed(file_path: str, db_path: str = DB_PATH) -> bool:
     doc = get_document_by_path(file_path, db_path)
     return doc is None or doc["file_hash"] != compute_hash(file_path)
+
+
+def start_document_processing(
+    file_path: str, expected_hash: str, db_path: str = DB_PATH
+) -> int:
+    init_db(db_path)
+    path = Path(file_path).resolve()
+    last_modified = path.stat().st_mtime
+
+    with get_conn(db_path) as conn:
+        row = conn.execute(
+            "SELECT id FROM documents WHERE file_path = ?", (str(path),)
+        ).fetchone()
+        if row:
+            document_id = row["id"]
+            conn.execute(
+                """
+                UPDATE documents
+                SET status = 'processing', updated_at = datetime('now')
+                WHERE id = ?
+                """,
+                (document_id,),
+            )
+        else:
+            cur = conn.execute(
+                """
+                INSERT INTO documents
+                    (file_name, file_path, doc_type, file_hash, last_modified, status)
+                VALUES (?, ?, ?, ?, ?, 'processing')
+                """,
+                (
+                    path.name,
+                    str(path),
+                    path.suffix.lstrip(".").lower(),
+                    expected_hash,
+                    last_modified,
+                ),
+            )
+            document_id = cur.lastrowid
+    return document_id
+
+
+def finalize_document_processing(
+    file_path: str, expected_hash: str, db_path: str = DB_PATH
+) -> None:
+    path = Path(file_path).resolve()
+    actual_hash = compute_hash(str(path))
+    if actual_hash != expected_hash:
+        raise RuntimeError(f"O documento foi alterado durante o processamento: {path}")
+
+    with get_conn(db_path) as conn:
+        cur = conn.execute(
+            """
+            UPDATE documents
+            SET file_hash = ?, last_modified = ?, status = 'indexed',
+                updated_at = datetime('now')
+            WHERE file_path = ?
+            """,
+            (actual_hash, path.stat().st_mtime, str(path)),
+        )
+        if cur.rowcount != 1:
+            raise RuntimeError(f"Documento não encontrado para finalizar: {path}")
+
+
+def mark_document_error(file_path: str, db_path: str = DB_PATH) -> None:
+    document = get_document_by_path(file_path, db_path)
+    if document is not None:
+        update_document_status(document["id"], "error", db_path)
+
 
 def update_document_status(document_id: int, status: str, db_path: str = DB_PATH) -> None:
     with get_conn(db_path) as conn:

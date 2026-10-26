@@ -23,7 +23,10 @@ def retrieve(query, index_path="indexes/docsassist.faiss", k=3):
         chunk_id = int(chunk_id)
         score = float(score)
 
-        chunk = get_chunks_by_ids([chunk_id])[0]
+        matching_chunks = get_chunks_by_ids([chunk_id])
+        if not matching_chunks:
+            continue
+        chunk = matching_chunks[0]
 
         results.append({
             'document_id': chunk['document_id'],

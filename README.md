@@ -92,6 +92,7 @@ DocsAssist/
 │   ├── embedding_service.py
 │   ├── indexer.py
 │   ├── indexing_service.py
+│   ├── manager.py
 │   └── retriever.py
 │
 ├── storage/
@@ -128,6 +129,7 @@ O diretório `src/` concentra os componentes responsáveis pela execução da pi
 - **`embedding_service.py`:** disponibiliza o modelo E5 por meio de uma API HTTP persistente.
 - **`indexer.py`:** gerencia a criação, atualização, leitura e persistência do índice FAISS.
 - **`indexing_service.py`:** coordena a geração de embeddings e a atualização incremental do índice vetorial.
+- **`manager.py`:** identifica PDFs novos ou alterados e coordena a ingestão completa, marcando o documento como indexado somente após a conclusão.
 - **`retriever.py`:** executa consultas semânticas e recupera os chunks correspondentes no SQLite.
 
 O diretório `storage/` contém a camada de persistência SQLite, responsável pelo gerenciamento de documentos, chunks, metadados e estruturas de busca textual.
@@ -174,7 +176,7 @@ O resultado é armazenado em um arquivo JSON, preservando a estrutura extraída 
 O fluxo dessa etapa é:
 
 ```text
-docs/arquivo.pdf --> extractor --> raws/arquivo.json 
+docs/arquivo.pdf --> extractor --> raws/arquivo-<hash>.json
 ``` 
 
 O arquivo produzido contém os elementos extraídos e seus metadados estruturais, que serão utilizados pelo `analyzer.py` para a organização e normalização do conteúdo.
@@ -198,7 +200,7 @@ O resultado é armazenado no formato JSONL (*JSON Lines*), no qual cada linha re
 O fluxo dessa etapa é:
 
 ```text
-raws/arquivo.json --> analyzer.py --> normalizeds/arquivo.jsonl
+raws/arquivo-<hash>.json --> analyzer.py --> normalizeds/arquivo-<hash>.jsonl
 ```
 
 Cada bloco normalizado contém informações como tipo, conteúdo textual, seção, página de origem e índice do parágrafo.
@@ -226,7 +228,7 @@ O resultado é armazenado em formato JSONL, com um chunk por linha.
 O fluxo dessa etapa é:
 
 ```text 
-normalizeds/arquivo.jsonl --> chunker.py --> Serviço E5 (/token-count) --> chunks/arquivo.jsonl
+normalizeds/arquivo-<hash>.jsonl --> chunker.py --> Serviço E5 (/token-count) --> chunks/arquivo-<hash>.jsonl
 ```
 
 Cada chunk preserva metadados como documento de origem, índice, seção, páginas inicial e final, quantidade de tokens e conteúdo textual.
@@ -253,7 +255,7 @@ Entre as funcionalidades implementadas estão:
 O fluxo de persistência é:
 
 ```text
-chunks/arquivo.jsonl --> storage/sqlite.py --> databases/rag.db
+chunks/arquivo-<hash>.jsonl --> storage/sqlite.py --> databases/rag.db
                                                        ├── documents
                                                        ├── chunks
                                                        └── chunks_fts
@@ -386,7 +388,7 @@ O `manifest.py` gerencia um arquivo `JSON` individual para cada documento, armaz
 A organização dos manifestos segue a estrutura:
 
 ```text
-docs/arquivo.pdf --> manifests/arquivo.json
+docs/arquivo.pdf --> manifests/arquivo-<hash>.json
                              ├── extraction
                              ├── normalization
                              ├── chunking
@@ -450,11 +452,13 @@ A separação dos serviços também evita o carregamento repetido do modelo E5 d
 
 O DocsAssist disponibiliza uma interface de linha de comando (CLI), implementada no `main.py`, que permite executar individualmente as etapas da pipeline ou realizar o processamento completo de um documento.
 
-A aplicação pode ser executada por meio do Docker Compose, utilizando o serviço `docsassist`. Para operações que dependem do modelo E5, como `chunk`, `index`, `all` e `embed-search`, é necessário iniciar previamente o serviço de embeddings:
+A aplicação pode ser executada por meio do Docker Compose, utilizando o serviço `docsassist`. As operações que dependem do modelo E5 iniciam automaticamente o serviço `embedder` e aguardam seu healthcheck antes de executar:
 
 ```bash
-docker compose up -d embedder
+docker compose run --rm docsassist sync docs --progress
 ```
+
+O primeiro início pode demorar enquanto o modelo E5 é carregado. O healthcheck confirma que a API FastAPI já está atendendo antes de liberar a execução do comando dependente.
 
 ### Processamento completo
 
@@ -465,6 +469,22 @@ docker compose run --rm docsassist all docs/arquivo.pdf --progress
 ```
 
 A opção `--progress` habilita as barras de progresso no terminal, permitindo acompanhar a execução das etapas.
+
+### Manager incremental
+
+O comando `sync` varre uma pasta recursivamente e processa apenas PDFs novos, alterados ou que não tenham concluído uma ingestão anterior. A comparação usa o hash SHA-256 e o status do documento no SQLite. Documentos já indexados e sem alterações são ignorados.
+
+```bash
+# Uma varredura
+docker compose run --rm docsassist sync docs --progress
+
+# Monitoramento contínuo; interrompa com Ctrl+C
+docker compose run --rm docsassist sync docs --watch --interval 5 --progress
+```
+
+No modo de monitoramento, a pasta é verificada periodicamente, portanto novos arquivos são ingeridos sem precisar reprocessar os documentos existentes. Se uma etapa falhar, o documento fica com status `error`, a execução é reportada e a próxima varredura tenta processá-lo novamente. O hash aceito como versão processada só é atualizado depois que embeddings e indexação terminam. Os IDs dos chunks anteriores são preservados para que seus vetores sejam removidos do FAISS durante a reindexação.
+
+Os arquivos intermediários e manifestos incluem um identificador derivado do caminho completo do documento. Assim, PDFs com o mesmo nome-base em subpastas diferentes não sobrescrevem seus artefatos.
 
 ### Execução individual das etapas
 
@@ -515,8 +535,7 @@ O DocsAssist utiliza a biblioteca `unittest`, disponível na biblioteca padrão 
 
 Os testes estão organizados no diretório `tests/` e têm como objetivo verificar o comportamento dos módulos, identificar possíveis regressões e auxiliar na validação das funcionalidades implementadas.
 
-Atualmente, os testes automatizados concentram-se principalmente na camada de persistência
-SQLite, abrangendo operações relacionadas ao armazenamento e à recuperação de dados.
+Os testes automatizados cobrem busca e persistência SQLite, além da seleção incremental de documentos, do isolamento de artefatos para nomes-base iguais e do tratamento de falhas durante a indexação.
 
 Para executar os testes, utilize o ambiente virtual Python do projeto, com as dependências instaladas, e execute o seguinte comando na raiz do repositório:
 ```bash
@@ -542,14 +561,14 @@ Entre as principais limitações estão:
 - Ausência de refinamento automático das consultas e reordenação inteligente dos resultados;
 - Falta de suporte específico para OCR em documentos digitalizados;
 - Ausência de subdivisão automática de blocos individuais que ultrapassem o limite de tokens;
-- Necessidade de iniciar manualmente o processamento de novos documentos.
+- O monitoramento de novos documentos precisa ser iniciado pelo comando `sync --watch`; não é um serviço autônomo em segundo plano.
 
 As próximas etapas de desenvolvimento incluem:
 
 - **Recuperação híbrida:** combinar os resultados de BM25 e FAISS, utilizando estratégias de fusão e reordenação;
 - **Planejamento de consultas:** utilizar um modelo de linguagem para interpretar perguntas, identificar documentos relevantes e melhorar as estratégias de busca;
 - **Geração de respostas:** integrar uma LLM para produzir respostas fundamentadas nos trechos recuperados, com referências aos documentos de origem;
-- **Automatização da ingestão:** implementar mecanismos para identificar novos documentos e iniciar seu processamento;
+- **Automatização da ingestão:** integrar o comando de monitoramento ao ciclo de vida da aplicação, se for necessário iniciá-lo automaticamente;
 - **Ampliação dos testes:** desenvolver testes automatizados para os diferentes componentes da pipeline.
 
 O objetivo é evoluir a arquitetura atual para um sistema RAG local capaz de consultar bases documentais e produzir respostas contextualizadas, mantendo a rastreabilidade das informações e o foco na utilização eficiente de recursos computacionais.
