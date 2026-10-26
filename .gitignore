@@ -20,6 +20,10 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
+# Manifestos
+manifests/*
+!manifests/.gitkeep
+
 # Documentos Entrada
 docs/*
 !docs/.gitkeep
@@ -37,6 +41,10 @@ chunks/*
 # Banco de Dados
 databases/*
 !databases/.gitkeep
+
+# FAISS
+indexes/*
+!indexes/.gitkeep
 
 # Cache Modelos
 .cache/

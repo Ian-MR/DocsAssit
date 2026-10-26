@@ -7,8 +7,30 @@ services:
     image: docsassist
 
     volumes:
+      - ./src:/app/src
+      - ./storage:/app/storage
+      - ./indexes:/app/indexes
+      - ./manifests:/app/manifests
       - ./docs:/app/docs
       - ./raws:/app/raws
       - ./normalizeds:/app/normalizeds
       - ./chunks:/app/chunks
       - ./databases:/app/databases
+  embedder:
+    image: docsassist
+
+    volumes:
+      - ./src:/app/src
+
+    entrypoint:
+      - python
+      - -m
+      - uvicorn
+      - src.embedding_service:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8001"
+
+    ports:
+      - "8001:8001"
