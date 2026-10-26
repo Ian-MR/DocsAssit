@@ -121,7 +121,12 @@ elif args.command == "sync":
     try:
         while True:
             report = sync_directory(Path(args.diretorio), progress=progress)
-            if not args.watch or report["processed"] or report["errors"]:
+            if (
+                not args.watch
+                or report["processed"]
+                or report["deleted"]
+                or report["errors"]
+            ):
                 print(json.dumps(report, ensure_ascii=False, indent=2))
             if report["errors"] and not args.watch:
                 raise SystemExit(1)

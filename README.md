@@ -250,13 +250,15 @@ Entre as funcionalidades implementadas estão:
 - Armazenamento de chunks com suas seções e páginas de origem;
 - Gerenciamento dos identificadores globais de documentos e chunks;
 - Substituição dos chunks antigos quando um documento é reimportado;
+- Desativação imediata e exclusão reconciliável de documentos removidos da pasta monitorada;
 - Recuperação textual por meio de SQLite FTS5 e BM25.
 
 O fluxo de persistência é:
 
 ```text
 chunks/arquivo-<hash>.jsonl --> storage/sqlite.py --> databases/rag.db
-                                                       ├── documents
+                                                       ├── documents / deletion_jobs
+                                                       ├── deleted_documents (histórico mínimo)
                                                        ├── chunks
                                                        └── chunks_fts
 ```
@@ -485,6 +487,8 @@ docker compose run --rm docsassist sync docs --watch --interval 5 --progress
 No modo de monitoramento, a pasta é verificada periodicamente, portanto novos arquivos são ingeridos sem precisar reprocessar os documentos existentes. Se uma etapa falhar, o documento fica com status `error`, a execução é reportada e a próxima varredura tenta processá-lo novamente. O hash aceito como versão processada só é atualizado depois que embeddings e indexação terminam. Os IDs dos chunks anteriores são preservados para que seus vetores sejam removidos do FAISS durante a reindexação.
 
 Os arquivos intermediários e manifestos incluem um identificador derivado do caminho completo do documento. Assim, PDFs com o mesmo nome-base em subpastas diferentes não sobrescrevem seus artefatos.
+
+Quando um arquivo antes registrado deixa de existir dentro da pasta monitorada, `sync` primeiro o desativa no SQLite e registra uma tarefa durável de limpeza. Depois remove os IDs associados do FAISS, apaga chunks (com atualização do FTS5), artefatos intermediários e manifesto. O histórico administrativo mínimo fica em `deleted_documents`; falhas ficam registradas em `deletion_jobs` e são tentadas novamente em cada varredura. Um arquivo adicionado novamente após a limpeza recebe um novo ID e passa por ingestão completa.
 
 ### Execução individual das etapas
 

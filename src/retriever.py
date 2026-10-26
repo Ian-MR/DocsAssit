@@ -1,10 +1,10 @@
 import numpy as np
 
-from storage.sqlite import get_chunks_by_ids
+from storage.sqlite import DB_PATH, get_chunks_by_ids
 from src.embedder import generate_query_embedding
 from src.indexer import load_index
 
-def retrieve(query, index_path="indexes/docsassist.faiss", k=3):
+def retrieve(query, index_path="indexes/docsassist.faiss", k=3, db_path=DB_PATH):
     index = load_index(index_path)
 
     if index.ntotal == 0:
@@ -23,7 +23,7 @@ def retrieve(query, index_path="indexes/docsassist.faiss", k=3):
         chunk_id = int(chunk_id)
         score = float(score)
 
-        matching_chunks = get_chunks_by_ids([chunk_id])
+        matching_chunks = get_chunks_by_ids([chunk_id], db_path)
         if not matching_chunks:
             continue
         chunk = matching_chunks[0]
