@@ -1,13 +1,21 @@
+import hashlib
 from pathlib import Path
 
+
+def _artifact_name(doc_path):
+    path = Path(doc_path).resolve()
+    path_hash = hashlib.sha256(str(path).encode("utf-8")).hexdigest()[:12]
+    return f"{path.stem}-{path_hash}"
+
+
 def raw_path(doc_path):
-    return Path(f"raws/{doc_path.stem}.json")
+    return Path("raws") / f"{_artifact_name(doc_path)}.json"
 
 def normalized_path(doc_path):
-    return Path(f"normalizeds/{doc_path.stem}.jsonl")
+    return Path("normalizeds") / f"{_artifact_name(doc_path)}.jsonl"
 
 def chunk_path(doc_path):
-    return Path(f"chunks/{doc_path.stem}.jsonl")
+    return Path("chunks") / f"{_artifact_name(doc_path)}.jsonl"
 
 def manifest_path(doc_path):
-    return Path(f"manifests/{doc_path.stem}.json")
+    return Path("manifests") / f"{_artifact_name(doc_path)}.json"

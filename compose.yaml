@@ -5,6 +5,9 @@ services:
       dockerfile: Dockerfile
 
     image: docsassist
+    depends_on:
+      embedder:
+        condition: service_healthy
 
     volumes:
       - ./src:/app/src
@@ -34,3 +37,14 @@ services:
 
     ports:
       - "8001:8001"
+
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/docs', timeout=2)"
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s

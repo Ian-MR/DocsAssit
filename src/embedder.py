@@ -1,4 +1,3 @@
-import json
 import requests
 import numpy as np
 
@@ -21,6 +20,8 @@ def count_tokens(texts: list[str]) -> list[int]:
 
 def embed(doc_path, progress: ProgressCallback | None = None):
     doc = get_document_by_path(str(doc_path))
+    if doc is None:
+        raise RuntimeError(f"Documento não está ativo para geração de embeddings: {doc_path}")
     chunks = get_chunks_by_document(doc['id'])
 
     total_chunks = len(chunks)
